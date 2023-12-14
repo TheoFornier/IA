@@ -1,234 +1,74 @@
-import random
-import matplotlib.pyplot as plt
-import numpy as np
-
-# Dimensions de l'échiquier
-echiquier_lignes = 8
-echiquier_colonnes = 8
-
-# Liste des types de pièces
-types_pieces = ['Roi', 'Reine', 'Tour', 'Fou', 'Cavalier', 'Pion']
-
-# Formes pour chaque type de pièce
-formes_pieces = {
-    'Roi': '♚',
-    'Reine': '♛',
-    'Tour': '♜',
-    'Fou': '♝',
-    'Cavalier': '♞',
-    'Pion': '♟',
-}
-
-# Couleur d'arrière-plan des cases
-couleur_case_blanche = '#FFEEDD'  # Jaune pâle
-couleur_case_noire = '#B5915F'    # Brun clair
-
-# Équipes
-equipe_blanc = 'Blanc'
-equipe_noir = 'Noir'
-
-# Fonction pour créer une disposition aléatoire des pièces avec des équipes
-def generer_disposition_aleatoire():
-    disposition = [['' for _ in range(echiquier_colonnes)] for _ in range(echiquier_lignes)]
-    equipe = [['' for _ in range(echiquier_colonnes)] for _ in range(echiquier_lignes)]
-    pieces_placees = 0
-
-    while pieces_placees < 10:
-        i, j = random.randint(0, echiquier_lignes - 1), random.randint(0, echiquier_colonnes - 1)
-
-        if disposition[i][j] == '':
-            piece = random.choice(types_pieces)
-            disposition[i][j] = piece
-
-            # Définir la couleur de l'équipe en fonction de la couleur de la case
-            equipe[i][j] = equipe_blanc if (i + j) % 2 != 0 else equipe_noir
-
-            pieces_placees += 1
-
-    return disposition, equipe
-
-# Fonction pour afficher l'échiquier avec matplotlib
-def afficher_echiquier(disposition, equipe):
-    # Vérifier s'il y a des pièces sur l'échiquier
-    if not any(piece for ligne in disposition for piece in ligne):
-        print("Il n'y a pas de pièces d'échecs à afficher.")
-        return
-
-    fig, ax = plt.subplots()
-    ax.set_aspect('equal')
-
-    for i in range(echiquier_lignes):
-        for j in range(echiquier_colonnes):
-            couleur_case = couleur_case_blanche if (i + j) % 2 == 0 else couleur_case_noire
-            ax.add_patch(plt.Rectangle((j, i), 1, 1, color=couleur_case))
-
-            piece = disposition[i][j]
-            if piece:
-                couleur_piece = 'black' if equipe[i][j] == equipe_noir else 'white'
-                ax.text(j + 0.5, i + 0.5, formes_pieces[piece], color=couleur_piece,
-                        fontsize=20, fontweight='bold', ha='center', va='center')
-
-    ax.set_xlim(0, echiquier_colonnes)
-    ax.set_ylim(0, echiquier_lignes)
-    ax.set_xticks(np.arange(0.5, echiquier_colonnes, 1))
-    ax.set_yticks(np.arange(0.5, echiquier_lignes, 1))
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
-    plt.grid(False)  # Désactiver les lignes de la grille
-
-    # Fonction appelée lors d'un clic de souris
-    def on_click(event):
-        if event.inaxes is not None:
-            i, j = int(event.ydata), int(event.xdata)
-            piece = disposition[i][j]
-
-            # Vérifier si la case cliquée contient une pièce
-            if piece:
-                equipe_piece = equipe[i][j]
-                print(f"Vous avez cliqué sur la case ({i}, {j}) contenant la pièce : {piece} de l'équipe : {equipe_piece}")
-            else:
-                print(f"La case ({i}, {j}) ne contient aucune pièce.")
-
-    # Attacher la fonction on_click à l'événement de clic de la souris
-    plt.gcf().canvas.mpl_connect('button_press_event', on_click)
-
-    plt.show()
-
-# Générer une disposition aléatoire des pièces avec des équipes et un maximum de 10 pièces
-disposition_aleatoire, equipe_aleatoire = generer_disposition_aleatoire()
-
-# Afficher l'échiquier avec matplotlib
-afficher_echiquier(disposition_aleatoire, equipe_aleatoire)
-
-"""import random
-import matplotlib.pyplot as plt
-import numpy as np
-from transformers import BertTokenizer, BertForSequenceClassification
+from transformers import DetrImageProcessor, DetrForObjectDetection
 import torch
+from PIL import Image
+import requests
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
-# Dimensions de l'échiquier
-echiquier_lignes = 8
-echiquier_colonnes = 8
+image_path = "image1.jpg"
+image = Image.open(image_path)
 
-# Liste des types de pièces
-types_pieces = ['Roi', 'Reine', 'Tour', 'Fou', 'Cavalier', 'Pion']
+# You can specify the revision tag if you don't want the timm dependency
+processor = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
+model = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", revision="no_timm")
 
-# Formes pour chaque type de pièce
-formes_pieces = {
-    'Roi': '♚',
-    'Reine': '♛',
-    'Tour': '♜',
-    'Fou': '♝',
-    'Cavalier': '♞',
-    'Pion': '♟',
-}
+inputs = processor(images=image, return_tensors="pt")
+outputs = model(**inputs)
 
-# Couleur d'arrière-plan des cases
-couleur_case_blanche = '#FFEEDD'  # Jaune pâle
-couleur_case_noire = '#B5915F'    # Brun clair
+# Convert outputs (bounding boxes and class logits) to COCO API
+# Let's only keep detections with a score > 0.8 (80% confidence)
+target_sizes = torch.tensor([image.size[::-1]])
+results = processor.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.7)[0]
 
-# Équipes
-equipe_blanc = 'Blanc'
-equipe_noir = 'Noir'
+# Visualize the image with bounding boxes around chess pieces
+fig, ax = plt.subplots(1)
+ax.imshow(image)
 
-# Fonction pour créer une disposition aléatoire des pièces avec des équipes
-def generer_disposition_aleatoire():
-    disposition = [['' for _ in range(echiquier_colonnes)] for _ in range(echiquier_lignes)]
-    equipe = [['' for _ in range(echiquier_colonnes)] for _ in range(echiquier_lignes)]
-    pieces_placees = 0
+# Print information about detected chess pieces
+for score, label, box in zip(results["scores"], results["labels"], results["boxes"]):
+    box = [round(i, 2) for i in box.tolist()]
+    class_name = model.config.id2label[label.item()]
 
-    while pieces_placees < 10:
-        i, j = random.randint(0, echiquier_lignes - 1), random.randint(0, echiquier_colonnes - 1)
+    # Create a rectangle patch
+    rect = patches.Rectangle((box[0], box[1]), box[2] - box[0], box[3] - box[1], linewidth=2, edgecolor='r',
+                             facecolor='none')
 
-        if disposition[i][j] == '':
-            piece = random.choice(types_pieces)
-            disposition[i][j] = piece
+    # Add the patch to the Axes
+    ax.add_patch(rect)
 
-            # Définir la couleur de l'équipe en fonction de la couleur de la case
-            equipe[i][j] = equipe_blanc if (i + j) % 2 != 0 else equipe_noir
+    # Display class label and confidence score
+    ax.text(box[0], box[1], f'{class_name} {round(score.item(), 3)}', color='r', verticalalignment='top')
 
-            pieces_placees += 1
+    print(
+        f"Chess Piece: {class_name} - Confidence: {round(score.item() * 100, 2)}%"
+        f" - Position: {box}")
 
-    return disposition, equipe
+plt.show()
 
-# Fonction pour afficher l'échiquier avec matplotlib
-def afficher_echiquier(disposition, equipe):
-    # Vérifier s'il y a des pièces sur l'échiquier
-    if not any(piece for ligne in disposition for piece in ligne):
-        print("Il n'y a pas de pièces d'échecs à afficher.")
-        return
 
-    fig, ax = plt.subplots()
-    ax.set_aspect('equal')
 
-    for i in range(echiquier_lignes):
-        for j in range(echiquier_colonnes):
-            couleur_case = couleur_case_blanche if (i + j) % 2 == 0 else couleur_case_noire
-            ax.add_patch(plt.Rectangle((j, i), 1, 1, color=couleur_case))
 
-            piece = disposition[i][j]
-            if piece:
-                couleur_piece = 'black' if equipe[i][j] == equipe_noir else 'white'
-                ax.text(j + 0.5, i + 0.5, formes_pieces[piece], color=couleur_piece,
-                        fontsize=20, fontweight='bold', ha='center', va='center')
 
-    ax.set_xlim(0, echiquier_colonnes)
-    ax.set_ylim(0, echiquier_lignes)
-    ax.set_xticks(np.arange(0.5, echiquier_colonnes, 1))
-    ax.set_yticks(np.arange(0.5, echiquier_lignes, 1))
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
-    plt.grid(False)  # Désactiver les lignes de la grille
 
-    # Fonction appelée lors d'un clic de souris
-    def on_click(event):
-        if event.inaxes is not None:
-            i, j = int(event.ydata), int(event.xdata)
-            piece = disposition[i][j]
 
-            # Vérifier si la case cliquée contient une pièce
-            if piece:
-                equipe_piece = equipe[i][j]
-                print(f"Vous avez cliqué sur la case ({i}, {j}) contenant la pièce : {piece} de l'équipe : {equipe_piece}")
-            else:
-                print(f"La case ({i}, {j}) ne contient aucune pièce.")
 
-    # Charger le modèle BERT pré-entraîné et le tokenizer
-    model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=len(types_pieces))
-    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
-    # Fonction pour effectuer la classification de texte avec BERT
-    def classifier_piece(description):
-        inputs = tokenizer(description, return_tensors="pt")
-        outputs = model(**inputs)
-        logits = outputs.logits
-        predicted_label = torch.argmax(logits, dim=1).item()
-        return types_pieces[predicted_label]
 
-    # Fonction appelée lors d'un clic de souris
-    def on_click(event):
-        if event.inaxes is not None:
-            i, j = int(event.ydata), int(event.xdata)
-            piece = disposition[i][j]
 
-            # Vérifier si la case cliquée contient une pièce
-            if piece:
-                equipe_piece = equipe[i][j]
-                print(
-                    f"Vous avez cliqué sur la case ({i}, {j}) contenant la pièce : {piece} de l'équipe : {equipe_piece}")
 
-                # Utiliser le modèle BERT pour classifier une description factice de la pièce
-                description_factice = f"C'est une pièce d'échecs de type {piece}."
-                predicted_type = classifier_piece(description_factice)
-                print(f"Le modèle prédit que la pièce est de type : {predicted_type}")
 
-            else:
-                print(f"La case ({i}, {j}) ne contient aucune pièce.")
 
-    # ... (le reste du code reste inchangé)
 
-    # Générer une disposition aléatoire des pièces avec des équipes et un maximum de 10 pièces
-    disposition_aleatoire, equipe_aleatoire = generer_disposition_aleatoire()
 
-    # Afficher l'échiquier avec matplotlib
-    afficher_echiquier(disposition_aleatoire, equipe_aleatoire)"""
+
+
+
+
+
+
+
+
+
+
+
+
